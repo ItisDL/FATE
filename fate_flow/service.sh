@@ -17,19 +17,13 @@
 #
 
 export PYTHONPATH=
-log_dir="${PYTHONPATH}/logs"
+log_dir="$(dirname $(dirname $(readlink -f "$0")))/logs"
 venv=
 
 module=fate_flow_server.py
 
 getpid() {
-    pid=`ps aux | grep "python fate_flow_server.py" | grep -v grep | awk '{print $2}'`
-
-    if [[ -n ${pid} ]]; then
-        return 1
-    else
-        return 0
-    fi
+    pid=`lsof -i:9380 | awk 'NR==2{print $2}'`
 }
 
 mklogsdir() {
@@ -41,26 +35,25 @@ mklogsdir() {
 status() {
     getpid
     if [[ -n ${pid} ]]; then
-        echo "status:
-        `ps aux | grep ${pid} | grep -v grep`"
-        exit 1
+        echo "status:`ps aux | grep ${pid} | grep -v grep`"
     else
         echo "service not running"
-        exit 0
     fi
 }
 
 start() {
+    sleep 8
     getpid
-    if [[ $? -eq 0 ]]; then
+    if [[ ${pid} == "" ]]; then
         mklogsdir
         source ${venv}/bin/activate
-        nohup python ${module} >> "${log_dir}/console.log" 2>>"${log_dir}/error.log" &
-        if [[ $? -eq 0 ]]; then
-            getpid
-            echo "service start sucessfully. pid: ${pid}"
+        nohup python $(echo ${PYTHONPATH} | awk -F":" '{print $1}')/fate_flow/fate_flow_server.py >> "${log_dir}/console.log" 2>>"${log_dir}/error.log" &
+        sleep 6
+        getpid
+        if [[ -n ${pid} ]]; then 
+           echo "service start sucessfully. pid: ${pid}"
         else
-            echo "service start failed"
+           echo "service start failed, please check ../logs/console.log and ../logs/error.log"
         fi
     else
         echo "service already started. pid: ${pid}"
@@ -82,6 +75,7 @@ stop() {
         echo "service not running"
     fi
 }
+
 
 case "$1" in
     start)
